@@ -9,14 +9,19 @@ extern crate pit;
 extern crate serde_json;
 
 mod activity;
+mod client;
 mod dateutil;
+mod json;
+mod markdown;
 
+use std::io::{self, Write};
 use chrono::Local;
 use clap::{Arg, app_from_crate, crate_authors, crate_name, crate_description, crate_version};
 use failure::Error;
 use pit::Pit;
-use crate::activity::ActivityClient;
+use crate::client::ActivityClient;
 use crate::dateutil::naive_str_to_utc;
+use crate::markdown::Markdown;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -47,7 +52,7 @@ fn main() -> Result<(), Error> {
         "00:00:00.000000")
         .unwrap();
     let to_datetime = naive_str_to_utc(
-        matches.value_of("from date").unwrap(),
+        matches.value_of("to date").unwrap(),
         "23:59:59.999999")
         .unwrap();
 
@@ -59,10 +64,9 @@ fn main() -> Result<(), Error> {
     let client = ActivityClient::new(user_name, access_token);
     let activities = client.collect(&from_datetime, &to_datetime, include_private)?;
 
-    for activity in activities.iter() {
-        let formatted_str = activity.to_markdown();
-        println!("{}", formatted_str);
-    }
+    let mut out = io::stdout();
+    activities.write_markdown(&mut out)?;
+    out.flush()?;
 
     Ok(())
 }
