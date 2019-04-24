@@ -1,6 +1,10 @@
 # furikrs
 furikrs is summary generator for Github activity. 
 
+inspire of [footprint](https://github.com/laughk/footprint) and [furik](https://github.com/pepabo/furik).
+
+## Usage
+
 USAGE:
     furikrs [FLAGS] [OPTIONS]
 
