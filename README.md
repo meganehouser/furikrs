@@ -5,10 +5,10 @@ inspire of [footprint](https://github.com/laughk/footprint) and [furik](https://
 
 ## Usage
 
+```
 USAGE:
     furikrs [FLAGS] [OPTIONS]
 
-```
 FLAGS:
     -h, --help       Prints help information
     -p, --private    enable get data from private repositories. (default: disable)
