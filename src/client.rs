@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::convert::TryFrom;
 
 use chrono::{DateTime, Utc};
@@ -7,20 +6,10 @@ use github_rs::client::{Executor, Github};
 use serde_json::Value;
 
 use crate::activity::GithubActivities;
-use crate::json::{as_datetime, as_str};
-
-const DEFAULT_EVENT_TYPES: &'static [&'static str] = &[
-    "IssuesEvent",
-    "PullRequestEvent",
-    "PullRequestReviewCommentEvent",
-    "IssueCommentEvent",
-    "CommitCommentEvent",
-];
 
 pub struct ActivityClient {
     user_name: String,
     access_token: String,
-    include_event_types: HashSet<String>,
 }
 
 impl ActivityClient {
@@ -28,10 +17,6 @@ impl ActivityClient {
         ActivityClient {
             user_name: user_name.to_string(),
             access_token: access_token.to_owned(),
-            include_event_types: DEFAULT_EVENT_TYPES
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
         }
     }
 
@@ -60,15 +45,9 @@ impl ActivityClient {
         let json = option_json.ok_or_else(|| err_msg("not found json"))?;
         debug!("{}", json);
 
-        let events: Vec<&Value> = json.as_array()
-            .ok_or_else(|| err_msg("invalid format json"))?
-            .iter()
-            .filter(|evnt| self.include_event_types.contains(as_str(&evnt["type"]).unwrap()))
-            .filter(|evnt| {
-                let created_at = as_datetime(&evnt["created_at"]).unwrap();
-                (from <= &created_at && &created_at <= to)
-            }).collect();
+        let events = json.as_array()
+            .ok_or_else(|| err_msg("invalid format json"))?;
 
-        Ok(GithubActivities::try_from(events.as_slice())?)
+        GithubActivities::try_from((events.as_slice(), from, to))
     }
 }
