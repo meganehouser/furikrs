@@ -20,18 +20,12 @@ impl GithubActivities {
             .get_mut(object_id)
     }
 
-    pub fn append(&mut self, repo_name: &str, obj: GithubObject) -> &mut GithubObject {
+    pub fn append(&mut self, repo_name: &str, obj: GithubObject) {
         let id = obj.id.to_owned();
         self.activity_objects
             .entry(String::from(repo_name))
             .or_insert(HashMap::new())
             .insert(String::from(id.as_str()), obj);
-
-        self.activity_objects
-            .get_mut(repo_name)
-            .unwrap()
-            .get_mut(&id)
-            .unwrap()
     }
 }
 
@@ -81,9 +75,9 @@ pub struct Activity {
 }
 
 impl Activity {
-    pub fn new(action: &str, body: Option<&str>, created_at: &DateTime<Utc>) -> Activity {
+    pub fn new(action: impl Into<String>, body: Option<&str>, created_at: &DateTime<Utc>) -> Activity {
         Activity {
-            action: String::from(action),
+            action: action.into(),
             body: body.map(|b| String::from(b)),
             created_at: created_at.to_owned(),
         }
