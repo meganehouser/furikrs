@@ -60,7 +60,8 @@ fn append_activity<P>(created_at: &DateTime<Utc>, value: &Value, github_activiti
         Some(obj) => obj,
         None => {
             let obj = P::parse_object(&id, value)?;
-            github_activities.append(repo_name, obj)
+            github_activities.append(repo_name, obj);
+            github_activities.get_mut(repo_name, &id).unwrap()
         }
     };
 
