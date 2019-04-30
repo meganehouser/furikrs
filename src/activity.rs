@@ -81,9 +81,9 @@ pub struct Activity {
 }
 
 impl Activity {
-    pub fn new(action: &str, body: Option<&str>, created_at: &DateTime<Utc>) -> Activity {
+    pub fn new(action: impl Into<String>, body: Option<&str>, created_at: &DateTime<Utc>) -> Activity {
         Activity {
-            action: String::from(action),
+            action: action.into(),
             body: body.map(|b| String::from(b)),
             created_at: created_at.to_owned(),
         }

@@ -105,7 +105,7 @@ impl ParseJsonValue for IssueCommentEvent {
     fn parse_activity(created_at: &DateTime<Utc>, value: &Value) -> Result<Activity, failure::Error> {
         let action = format!("Comment {}", as_str(&value["payload"]["action"])?);
         let body =  as_str(&value["payload"]["comment"]["body"])?;
-        Ok(Activity::new(&action, Some(&body), created_at))
+        Ok(Activity::new(action, Some(&body), created_at))
     }
 }
 
@@ -142,8 +142,8 @@ impl ParseJsonValue for PullRequestReviewCommentEvent {
         Ok(GithubObject::new(id, GithubObjectType::PullRequest, html_link, Some(pr_title)))
     }
     fn parse_activity(created_at: &DateTime<Utc>, value: &Value) -> Result<Activity, failure::Error> {
-        let action = as_str(&value["payload"]["action"])?;
-        let body = format!("Comment {}", as_str(&value["payload"]["comment"]["body"])?);
+        let action = format!("Comment {}", as_str(&value["payload"]["action"])?);
+        let body =  as_str(&value["payload"]["comment"]["body"])?;
         Ok(Activity::new(action, Some(&body), created_at))
     }
 }
@@ -163,7 +163,7 @@ impl ParseJsonValue for CommitCommentEvent {
     fn parse_activity(created_at: &DateTime<Utc>, value: &Value) -> Result<Activity, failure::Error> {
         let action = format!("Comment {}", as_str(&value["payload"]["action"])?);
         let body = as_str(&value["payload"]["comment"]["body"])?;
-        Ok(Activity::new(&action, Some(&body), created_at))
+        Ok(Activity::new(action, Some(&body), created_at))
     }
 }
 
