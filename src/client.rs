@@ -6,6 +6,7 @@ use github_rs::client::{Executor, Github};
 use serde_json::Value;
 
 use crate::activity::GithubActivities;
+use crate::json::RawEvent;
 
 pub struct ActivityClient {
     user_name: String,
@@ -45,9 +46,13 @@ impl ActivityClient {
         let json = option_json.ok_or_else(|| err_msg("not found json"))?;
         debug!("{}", json);
 
-        let events = json.as_array()
-            .ok_or_else(|| err_msg("invalid format json"))?;
+        let raw_events: Vec<RawEvent> = json.as_array()
+            .ok_or_else(|| err_msg("invalid format json"))?
+            .into_iter()
+            .map(|value| RawEvent::try_from(value).unwrap())
+            .filter(|raw_event| from <= &raw_event.created_at && &raw_event.created_at <= to)
+            .collect();
 
-        GithubActivities::try_from((events.as_slice(), from, to))
+        GithubActivities::try_from(raw_events.as_slice())
     }
 }

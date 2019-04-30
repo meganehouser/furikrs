@@ -13,36 +13,65 @@ trait ParseJsonValue {
     fn parse_activity(created_at: &DateTime<Utc>, value: &Value) -> Result<Activity, failure::Error>;
 }
 
-impl TryFrom<(&[Value], &DateTime<Utc>, &DateTime<Utc>)> for GithubActivities {
+pub struct RawEvent {
+    pub created_at: DateTime<Utc>,
+    raw_data: Value,
+}
+
+impl RawEvent {
+    fn parse_repo_name(&self) -> Result<&str, failure::Error> {
+        Ok(as_str(&self.raw_data["repo"]["name"])?)
+    }
+
+    fn parse_id<P: ParseJsonValue>(&self) -> Result<String, failure::Error> {
+        P::parse_id(&self.raw_data)
+    }
+
+    fn parse_object<P: ParseJsonValue>(&self) -> Result<GithubObject, failure::Error> {
+        let id = self.parse_id::<P>()?;
+        P::parse_object(&id, &self.raw_data)
+    }
+
+    fn parse_activity<P: ParseJsonValue>(&self) -> Result<Activity, failure::Error> {
+        P::parse_activity(&self.created_at, &self.raw_data)
+    }
+}
+
+impl TryFrom<&Value> for RawEvent {
     type Error = failure::Error;
 
-    fn try_from(init: (&[Value], &DateTime<Utc>, &DateTime<Utc>)) -> Result<Self, Self::Error> {
-        let (events, from, to) = init;
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        let created_at = as_datetime(&value["created_at"])?;
+        Ok(RawEvent {
+            raw_data: value.to_owned(),
+            created_at,
+        })
+    }
+}
 
+impl TryFrom<&[RawEvent]> for GithubActivities {
+    type Error = failure::Error;
+
+    fn try_from(raw_events: &[RawEvent]) -> Result<Self, Self::Error> {
         let mut github_activities = GithubActivities::new();
 
-        for event in events {
-            let created_at = as_datetime(&event["created_at"])?;
-            if !(from <= &created_at && &created_at <= to) {
-                continue;
-            }
-
-            let event_type = as_str(&event["type"])?;
+        for event in raw_events {
+            let event_type = as_str(&event.raw_data["type"])?;
             match event_type {
                 type_name if type_name == IssuesEvent::TYPE_NAME => {
-                    append_activity::<IssuesEvent>(&created_at, &event, &mut github_activities)?;
+                    append_activity::<IssuesEvent>(event, &mut github_activities)?;
                 },
                 type_name if type_name == IssueCommentEvent::TYPE_NAME => {
-                    append_activity::<IssueCommentEvent>(&created_at, &event, &mut github_activities)?;
+                    append_activity::<IssueCommentEvent>(event, &mut github_activities)?;
                 }
                 type_name if type_name == PullRequestEvent::TYPE_NAME => {
-                    append_activity::<PullRequestEvent>(&created_at, &event, &mut github_activities)?;
+                    append_activity::<PullRequestEvent>(event, &mut github_activities)?;
                 },
                 type_name if type_name == PullRequestReviewCommentEvent::TYPE_NAME => {
-                    append_activity::<PullRequestReviewCommentEvent>(&created_at, &event, &mut github_activities)?;
+                    append_activity::<PullRequestReviewCommentEvent>(event, &mut github_activities)?;
                 },
                 type_name if type_name == CommitCommentEvent::TYPE_NAME => {
-                    append_activity::<CommitCommentEvent>(&created_at, &event, &mut github_activities)?;
+                    append_activity::<CommitCommentEvent>(event, &mut github_activities)?;
                 },
                 _ => (),
             }
@@ -52,21 +81,21 @@ impl TryFrom<(&[Value], &DateTime<Utc>, &DateTime<Utc>)> for GithubActivities {
     }
 }
 
-fn append_activity<P>(created_at: &DateTime<Utc>, value: &Value, github_activities: &mut GithubActivities) -> Result<(), failure::Error>
+fn append_activity<P>(raw_event: &RawEvent, github_activities: &mut GithubActivities) -> Result<(), failure::Error>
     where P: ParseJsonValue {
-    let repo_name = as_str(&value["repo"]["name"])?;
+    let repo_name = raw_event.parse_repo_name()?;
 
-    let id = P::parse_id(value)?;
+    let id = raw_event.parse_id::<P>()?;
     let github_obj = match github_activities.get_mut(repo_name, &id) {
         Some(obj) => obj,
         None => {
-            let obj = P::parse_object(&id, value)?;
+            let obj = raw_event.parse_object::<P>()?;
             github_activities.append(repo_name, obj);
             github_activities.get_mut(repo_name, &id).unwrap()
         }
     };
 
-    let activity = P::parse_activity(created_at, value)?;
+    let activity = raw_event.parse_activity::<P>()?;
     github_obj.activities.push(activity);
     Ok(())
 }
