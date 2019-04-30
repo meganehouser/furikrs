@@ -7,6 +7,7 @@ use serde_json::Value;
 use crate::activity::{ GithubActivities, GithubObject, Activity, GithubObjectType };
 
 trait ParseJsonValue {
+    const TYPE_NAME: &'static str;
     fn parse_id(value: &Value) -> Result<String, failure::Error>;
     fn parse_object(id: &str, value: &Value) -> Result<GithubObject, failure::Error>;
     fn parse_activity(created_at: &DateTime<Utc>, value: &Value) -> Result<Activity, failure::Error>;
@@ -28,19 +29,19 @@ impl TryFrom<(&[Value], &DateTime<Utc>, &DateTime<Utc>)> for GithubActivities {
 
             let event_type = as_str(&event["type"])?;
             match event_type {
-                "IssuesEvent" => {
+                type_name if type_name == IssuesEvent::TYPE_NAME => {
                     append_activity::<IssuesEvent>(&created_at, &event, &mut github_activities)?;
                 },
-                "IssueCommentEvent" => {
+                type_name if type_name == IssueCommentEvent::TYPE_NAME => {
                     append_activity::<IssueCommentEvent>(&created_at, &event, &mut github_activities)?;
                 }
-                "PullRequestEvent" => {
+                type_name if type_name == PullRequestEvent::TYPE_NAME => {
                     append_activity::<PullRequestEvent>(&created_at, &event, &mut github_activities)?;
                 },
-                "PullRequestReviewCommentEvent" => {
+                type_name if type_name == PullRequestReviewCommentEvent::TYPE_NAME => {
                     append_activity::<PullRequestReviewCommentEvent>(&created_at, &event, &mut github_activities)?;
                 },
-                "CommitCommentEvent" => {
+                type_name if type_name == CommitCommentEvent::TYPE_NAME => {
                     append_activity::<CommitCommentEvent>(&created_at, &event, &mut github_activities)?;
                 },
                 _ => (),
@@ -74,6 +75,8 @@ fn append_activity<P>(created_at: &DateTime<Utc>, value: &Value, github_activiti
 struct IssuesEvent {}
 
 impl ParseJsonValue for IssuesEvent {
+    const TYPE_NAME: &'static str = "IssuesEvent";
+
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
         let issue_no = as_u64(&value["payload"]["issue"]["number"])?;
         Ok(format!("#{}", issue_no))
@@ -93,6 +96,8 @@ impl ParseJsonValue for IssuesEvent {
 struct IssueCommentEvent {}
 
 impl ParseJsonValue for IssueCommentEvent {
+    const TYPE_NAME: &'static str = "IssueCommentEvent";
+
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
         let issue_no = as_u64(&value["payload"]["issue"]["number"])?;
         Ok(format!("#{}", issue_no))
@@ -113,6 +118,8 @@ impl ParseJsonValue for IssueCommentEvent {
 struct PullRequestEvent {}
 
 impl ParseJsonValue for PullRequestEvent {
+    const TYPE_NAME: &'static str = "PullRequestEvent";
+
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
         let pr_no = as_u64(&value["payload"]["pull_request"]["number"])?;
         Ok(format!("#{}", pr_no))
@@ -132,6 +139,8 @@ impl ParseJsonValue for PullRequestEvent {
 struct PullRequestReviewCommentEvent {}
 
 impl ParseJsonValue for PullRequestReviewCommentEvent {
+    const TYPE_NAME: &'static str = "PullRequestReviewCommentEvent";
+
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
         let pr_no = as_u64(&value["payload"]["pull_request"]["number"])?;
         Ok(format!("#{}", pr_no))
@@ -152,6 +161,8 @@ impl ParseJsonValue for PullRequestReviewCommentEvent {
 struct CommitCommentEvent {}
 
 impl ParseJsonValue for CommitCommentEvent {
+    const TYPE_NAME: &'static str = "CommitCommentEvent";
+
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
         let commit_id = String::from(&as_str(&value["payload"]["comment"]["commit_id"])?[..6]);
         Ok(commit_id)
