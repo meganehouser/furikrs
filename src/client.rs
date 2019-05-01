@@ -5,8 +5,7 @@ use failure::{Error, err_msg, format_err};
 use github_rs::client::{Executor, Github};
 use serde_json::Value;
 
-use crate::activity::GithubActivities;
-use crate::json::RawEvent;
+use crate::activity::{ GithubActivities, RawEvent };
 
 pub struct ActivityClient {
     user_name: String,

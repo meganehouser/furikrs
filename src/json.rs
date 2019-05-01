@@ -4,48 +4,25 @@ use chrono::{DateTime, Utc};
 use failure::{self, err_msg};
 use serde_json::Value;
 
-use crate::activity::{ GithubActivities, GithubObject, Activity, GithubObjectType };
-
-trait ParseJsonValue {
-    const TYPE_NAME: &'static str;
-    fn parse_id(value: &Value) -> Result<String, failure::Error>;
-    fn parse_object(id: &str, value: &Value) -> Result<GithubObject, failure::Error>;
-    fn parse_activity(created_at: &DateTime<Utc>, value: &Value) -> Result<Activity, failure::Error>;
-}
-
-pub struct RawEvent {
-    pub created_at: DateTime<Utc>,
-    raw_data: Value,
-}
-
-impl RawEvent {
-    fn parse_repo_name(&self) -> Result<&str, failure::Error> {
-        Ok(as_str(&self.raw_data["repo"]["name"])?)
-    }
-
-    fn parse_id<P: ParseJsonValue>(&self) -> Result<String, failure::Error> {
-        P::parse_id(&self.raw_data)
-    }
-
-    fn parse_object<P: ParseJsonValue>(&self) -> Result<GithubObject, failure::Error> {
-        let id = self.parse_id::<P>()?;
-        P::parse_object(&id, &self.raw_data)
-    }
-
-    fn parse_activity<P: ParseJsonValue>(&self) -> Result<Activity, failure::Error> {
-        P::parse_activity(&self.created_at, &self.raw_data)
-    }
-}
+use crate::activity::{
+    GithubActivities,
+    GithubObject,
+    Activity,
+    GithubObjectType,
+    RawEvent,
+    ParseActivity,
+};
 
 impl TryFrom<&Value> for RawEvent {
     type Error = failure::Error;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
-        let created_at = as_datetime(&value["created_at"])?;
-        Ok(RawEvent {
-            raw_data: value.to_owned(),
-            created_at,
-        })
+        Ok(RawEvent::new(
+            as_str(&value["type"])?,
+            as_str(&value["repo"]["name"])?,
+            as_datetime(&value["created_at"])?,
+            &value,
+        ))
     }
 }
 
@@ -56,22 +33,21 @@ impl TryFrom<&[RawEvent]> for GithubActivities {
         let mut github_activities = GithubActivities::new();
 
         for event in raw_events {
-            let event_type = as_str(&event.raw_data["type"])?;
-            match event_type {
+            match &event.type_name {
                 type_name if type_name == IssuesEvent::TYPE_NAME => {
-                    append_activity::<IssuesEvent>(event, &mut github_activities)?;
+                    github_activities.append_activity::<IssuesEvent>(event)?;
                 },
                 type_name if type_name == IssueCommentEvent::TYPE_NAME => {
-                    append_activity::<IssueCommentEvent>(event, &mut github_activities)?;
+                    github_activities.append_activity::<IssueCommentEvent>(event)?;
                 }
                 type_name if type_name == PullRequestEvent::TYPE_NAME => {
-                    append_activity::<PullRequestEvent>(event, &mut github_activities)?;
+                    github_activities.append_activity::<PullRequestEvent>(event)?;
                 },
                 type_name if type_name == PullRequestReviewCommentEvent::TYPE_NAME => {
-                    append_activity::<PullRequestReviewCommentEvent>(event, &mut github_activities)?;
+                    github_activities.append_activity::<PullRequestReviewCommentEvent>(event)?;
                 },
                 type_name if type_name == CommitCommentEvent::TYPE_NAME => {
-                    append_activity::<CommitCommentEvent>(event, &mut github_activities)?;
+                    github_activities.append_activity::<CommitCommentEvent>(event)?;
                 },
                 _ => (),
             }
@@ -81,29 +57,9 @@ impl TryFrom<&[RawEvent]> for GithubActivities {
     }
 }
 
-fn append_activity<P>(raw_event: &RawEvent, github_activities: &mut GithubActivities) -> Result<(), failure::Error>
-    where P: ParseJsonValue {
-    let repo_name = raw_event.parse_repo_name()?;
-
-    let id = raw_event.parse_id::<P>()?;
-    let github_obj = match github_activities.get_mut(repo_name, &id) {
-        Some(obj) => obj,
-        None => {
-            let obj = raw_event.parse_object::<P>()?;
-            github_activities.append(repo_name, obj);
-            github_activities.get_mut(repo_name, &id).unwrap()
-        }
-    };
-
-    let activity = raw_event.parse_activity::<P>()?;
-    github_obj.activities.push(activity);
-    Ok(())
-}
-
-
 struct IssuesEvent {}
 
-impl ParseJsonValue for IssuesEvent {
+impl ParseActivity for IssuesEvent {
     const TYPE_NAME: &'static str = "IssuesEvent";
 
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
@@ -124,7 +80,7 @@ impl ParseJsonValue for IssuesEvent {
 
 struct IssueCommentEvent {}
 
-impl ParseJsonValue for IssueCommentEvent {
+impl ParseActivity for IssueCommentEvent {
     const TYPE_NAME: &'static str = "IssueCommentEvent";
 
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
@@ -146,7 +102,7 @@ impl ParseJsonValue for IssueCommentEvent {
 
 struct PullRequestEvent {}
 
-impl ParseJsonValue for PullRequestEvent {
+impl ParseActivity for PullRequestEvent {
     const TYPE_NAME: &'static str = "PullRequestEvent";
 
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
@@ -167,7 +123,7 @@ impl ParseJsonValue for PullRequestEvent {
 
 struct PullRequestReviewCommentEvent {}
 
-impl ParseJsonValue for PullRequestReviewCommentEvent {
+impl ParseActivity for PullRequestReviewCommentEvent {
     const TYPE_NAME: &'static str = "PullRequestReviewCommentEvent";
 
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
@@ -189,7 +145,7 @@ impl ParseJsonValue for PullRequestReviewCommentEvent {
 
 struct CommitCommentEvent {}
 
-impl ParseJsonValue for CommitCommentEvent {
+impl ParseActivity for CommitCommentEvent {
     const TYPE_NAME: &'static str = "CommitCommentEvent";
 
     fn parse_id(value: &Value) -> Result<String, failure::Error> {
