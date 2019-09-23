@@ -25,32 +25,36 @@ impl ActivityClient {
         let client = Github::new(&self.access_token)
             .map_err(|e| format_err!("{}", e))?;
 
-        let events_func =
-            client.get()
-                .users()
-                .username(&self.user_name)
-                .events();
+        let mut raw_events: Vec<RawEvent> = Vec::new();
 
-        let (_, _, option_json) = if include_private {
-            events_func
-                .execute::<Value>()
-                .map_err(|e| format_err!("{}", e))?
-        } else {
-            events_func
-                .public()
-                .execute::<Value>()
-                .map_err(|e| format_err!("{}", e))?
-        };
+        for n in 1..10 {
+            let event_endpoint = if include_private {
+                format!("users/{}/events?page={}", self.user_name, n)
+            } else {
+                format!("users/{}/events/public?page={}", self.user_name, n)
+            };
 
-        let json = option_json.ok_or_else(|| err_msg("not found json"))?;
-        debug!("{}", json);
+            let (_, _, option_json) = client.get()
+                    .custom_endpoint(&event_endpoint)
+                    .execute::<Value>()
+                    .map_err(|e| format_err!("{}", e))?;
 
-        let raw_events: Vec<RawEvent> = json.as_array()
-            .ok_or_else(|| err_msg("invalid format json"))?
-            .into_iter()
-            .map(|value| RawEvent::try_from(value).unwrap())
-            .filter(|raw_event| from <= &raw_event.created_at && &raw_event.created_at <= to)
-            .collect();
+            let json = option_json.ok_or_else(|| err_msg("not found json"))?;
+            debug!("{}", json);
+
+            let temp_events: Vec<RawEvent> = json.as_array()
+                .ok_or_else(|| err_msg("invalid format json"))?
+                .into_iter()
+                .map(|value| RawEvent::try_from(value).unwrap())
+                .filter(|raw_event| from <= &raw_event.created_at && &raw_event.created_at <= to)
+                .collect();
+
+            if temp_events.len() == 0 {
+                break;
+            }
+
+            raw_events.extend(temp_events.into_iter());
+        }
 
         GithubActivities::try_from(raw_events.as_slice())
     }

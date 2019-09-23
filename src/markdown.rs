@@ -53,7 +53,7 @@ impl Markdown for Activity {
         writer.write_all(self.action.as_bytes())?;
         if let Some(b) = &self.body {
             let body = if b.chars().count() <= *MAX_BODY_LENGTH {
-                String::from(b.as_ref())
+                String::from(b.as_ref() as &str)
             } else {
                 let b_: String = b.chars().take(*MAX_BODY_LENGTH).collect();
                 format!("{}...", b_)
